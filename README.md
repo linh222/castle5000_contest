@@ -85,14 +85,13 @@ works as-is after `cp .env.example .env`:
 ```bash
 source .venv/bin/activate
 uvicorn tools.mock_dres:app --port 8090 &                       # fake DRES
-uvicorn backend.app.main:app --app-dir . --port 5000 &
-open http://127.0.0.1:5000/          # login: student / student
+uvicorn backend.app.main:app --app-dir . --port 8000 &
+open http://127.0.0.1:8000/          # login: student / student
 ```
 
-- **Use `127.0.0.1`, not `localhost`**, when testing locally on macOS:
-  macOS's AirPlay Receiver also listens on port 5000 over IPv6, and
-  `localhost` resolves to `::1` first, silently hitting AirPlay instead of
-  the app.
+- Local dev uses port **8000**, not 5000: on macOS, AirPlay Receiver
+  listens on port 5000 and answers browser requests with a `403 Access
+  denied`, even on `127.0.0.1`. (Docker still uses 5000 internally.)
 
 ### Option B: against a real DRES instance
 
@@ -110,8 +109,8 @@ Then run the app the same way as Option A (no mock DRES needed this time):
 
 ```bash
 source .venv/bin/activate
-uvicorn backend.app.main:app --app-dir . --port 5000 &
-open http://127.0.0.1:5000/          # login with a real DRES account
+uvicorn backend.app.main:app --app-dir . --port 8000 &
+open http://127.0.0.1:8000/          # login with a real DRES account
 ```
 
 **How submission actually works:** students never talk to DRES directly.
@@ -128,12 +127,12 @@ clicking through the UI), log in first to get a session cookie, then call
 
 ```bash
 # 1. Log in (through this app, not DRES directly) and save the session cookie
-curl -s -c cookies.txt -X POST http://127.0.0.1:5000/api/login \
+curl -s -c cookies.txt -X POST http://127.0.0.1:8000/api/login \
   -H "Content-Type: application/json" \
   -d '{"username": "student", "password": "student"}'
 
 # 2. Submit an image ID using that cookie
-curl -s -b cookies.txt -X POST http://127.0.0.1:5000/api/submit \
+curl -s -b cookies.txt -X POST http://127.0.0.1:8000/api/submit \
   -H "Content-Type: application/json" \
   -d '{"id": "08_1002.jpg"}'
 ```
@@ -189,7 +188,7 @@ here too (`SESSION_SECRET` has no default and is required).
 ## Load test
 
 ```bash
-k6 run tools/loadtest.js --env BASE_URL=http://127.0.0.1:5000 --env VUS=10 --env DURATION=1m
+k6 run tools/loadtest.js --env BASE_URL=http://127.0.0.1:8000 --env VUS=10 --env DURATION=1m
 ```
 
 Not yet run against a real VPS/domain with 40-50 real DRES accounts --
