@@ -1,0 +1,14 @@
+numpy
+pillow
+open_clip_torch
+torch
+faiss-cpu
+fastapi
+uvicorn[standard]
+httpx
+pydantic
+pydantic-settings
+python-multipart
+itsdangerous
+pytest
+pytest-asyncio

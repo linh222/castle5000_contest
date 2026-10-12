@@ -1,0 +1,216 @@
+:root {
+  --bg: #0f1115;
+  --panel: #1a1d24;
+  --border: #2a2e37;
+  --text: #e7e9ee;
+  --muted: #9aa1ad;
+  --accent: #4f8cff;
+  --danger: #ff5c5c;
+  --ok: #4caf50;
+}
+
+* { box-sizing: border-box; }
+
+/* `.lightbox`/`.dialog` set `display: flex` below, which (being author CSS)
+   overrides the browser's own `[hidden] { display: none }` rule -- without
+   this, elements marked `hidden` still render as full-screen overlays and
+   silently block every click on the page underneath them. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+  /* Scales with the viewport instead of capping at a fixed width, so a
+     21:9/4K monitor actually gets more columns of results, not empty
+     margins, while a narrow window never exceeds it. */
+  max-width: min(1800px, 96vw);
+  margin: 0 auto;
+  padding: clamp(12px, 2vw, 24px);
+}
+
+.statusbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px clamp(12px, 2vw, 24px);
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.statusbar .spacer { flex: 1; }
+
+#task-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+#login-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* min-height (not vh padding) so the form stays centered and fully
+     visible on short/landscape screens instead of being pushed off. */
+  min-height: 100vh;
+  padding: 24px;
+}
+
+#login-form {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
+
+input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+button {
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  color: white;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.error { color: var(--danger); font-size: 14px; }
+
+#search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+#query-input { flex: 1; min-width: 200px; }
+
+#search-meta { color: var(--muted); font-size: 13px; margin: 4px 0 16px; }
+
+.grid {
+  display: grid;
+  /* Tile size scales smoothly with viewport width (via clamp) and
+     auto-fill adds/removes columns to match, so phones, laptops and wide
+     monitors all get a sensible column count without separate
+     breakpoints for the grid itself. */
+  grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 14vw, 180px), 1fr));
+  gap: 8px;
+}
+
+.thumb {
+  position: relative;
+}
+
+.thumb img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  background: var(--panel);
+  display: block;
+}
+
+.thumb img.submitted { border-color: var(--ok); }
+
+.thumb-id {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.lightbox, .dialog {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.lightbox-content, .dialog-content {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 16px;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.lightbox-content img {
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 8px;
+}
+
+.lightbox-id {
+  margin: 0;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--text);
+}
+
+.lightbox-meta {
+  align-self: stretch;
+  max-width: 480px;
+  max-height: 20vh;
+  overflow-y: auto;
+  text-align: left;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.lightbox-meta p { margin: 4px 0; }
+.lightbox-meta strong { color: var(--text); }
+
+.lightbox-actions { display: flex; gap: 8px; }
+
+#close-lightbox-btn, #confirm-no { background: var(--border); }
+#submit-result:not(:empty) { font-weight: bold; }
+
+@media (max-width: 480px) {
+  .statusbar { gap: 6px 10px; font-size: 14px; }
+  #login-form { padding: 16px; }
+  .lightbox-content, .dialog-content { padding: 12px; gap: 8px; }
+}

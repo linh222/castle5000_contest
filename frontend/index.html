@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Castle5000 Retrieval</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="statusbar" id="statusbar" hidden>
+    <span id="task-name">Chưa có task đang chạy</span>
+    <span class="spacer"></span>
+    <span id="user-name"></span>
+    <button id="logout-btn">Đăng xuất</button>
+  </header>
+
+  <main>
+    <section id="login-view">
+      <form id="login-form">
+        <h1>Castle5000 Retrieval</h1>
+        <label>
+          Tên đăng nhập (DRES)
+          <input type="text" id="username" autocomplete="username" required />
+        </label>
+        <label>
+          Mật khẩu
+          <input type="password" id="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit">Đăng nhập</button>
+        <p class="error" id="login-error" hidden></p>
+      </form>
+    </section>
+
+    <section id="search-view" hidden>
+      <form id="search-form">
+        <input
+          type="text"
+          id="query-input"
+          placeholder="Mô tả ảnh cần tìm, ví dụ: a red bus near a river"
+          maxlength="300"
+          required
+        />
+        <button type="submit">Tìm</button>
+      </form>
+      <p id="search-meta"></p>
+      <div id="results-grid" class="grid"></div>
+    </section>
+  </main>
+
+  <div id="lightbox" class="lightbox" hidden>
+    <div class="lightbox-content">
+      <img id="lightbox-img" alt="" />
+      <p id="lightbox-id" class="lightbox-id"></p>
+      <div id="lightbox-meta" class="lightbox-meta"></div>
+      <div class="lightbox-actions">
+        <button id="submit-btn">Submit ảnh này</button>
+        <button id="close-lightbox-btn">Đóng</button>
+      </div>
+      <p id="submit-result"></p>
+    </div>
+  </div>
+
+  <div id="confirm-dialog" class="dialog" hidden>
+    <div class="dialog-content">
+      <p>Bạn chắc chắn muốn submit ảnh này lên DRES? Submit sai có thể bị trừ điểm.</p>
+      <button id="confirm-yes">Submit</button>
+      <button id="confirm-no">Huỷ</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

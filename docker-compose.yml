@@ -1,0 +1,40 @@
+# Retrieval service only. In the real deployment this merges into the
+# shared compose file with `dres` and `caddy` (see technical note section 7)
+# -- `dres` there should expose its network alias as "dres" so
+# DRES_BASE_URL=http://dres:8080 resolves. Caddy terminates TLS and proxies
+# to retrieval:5000; retrieval itself must not publish to the host.
+services:
+  retrieval:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      DRES_BASE_URL: ${DRES_BASE_URL:-http://dres:8080}
+      DRES_EVALUATION_ID: ${DRES_EVALUATION_ID:-}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET outside the repo}
+      MAX_K: ${MAX_K:-100}
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-30}
+    volumes:
+      - ./data:/app/data:ro
+    expose:
+      - "5000"
+    mem_limit: 2g
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/health').status==200 else 1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks:
+      - dres_net
+
+networks:
+  dres_net:
+    external: false
