@@ -2,8 +2,8 @@
 
 Text -> image retrieval web app for ~40 students, backed by CLIP + FAISS,
 submitting results to [DRES](https://github.com/dres-dev/DRES). Implements
-the technical note
-(`Technical note Hệ thống truy vấn ảnh (retrieval)`).
+an internal technical note covering the system design (not included in
+this repo).
 
 Students type a text query, get back a grid of matching images (CLIP
 embeddings + FAISS nearest-neighbor search), and submit the one they think
