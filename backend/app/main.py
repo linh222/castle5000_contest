@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .dres_client import DresAuthError, DresClient, DresError
+from .dres_client import DresClient
+from .gateway import DresGateway, GatewayError
 from .metadata import MetadataStore
 from .ratelimit import RateLimiter
 from .schemas import (
@@ -57,7 +58,9 @@ async def lifespan(app: FastAPI):
     app.state.search_engine = SearchEngine(settings)
     app.state.metadata_store = MetadataStore(settings.metadata_path)
     app.state.dres_client = DresClient(settings)
-    app.state.sessions = SessionStore(settings)
+    app.state.gateway = DresGateway(
+        settings, app.state.dres_client, SessionStore(settings)
+    )
     app.state.search_limiter = RateLimiter(settings.rate_limit_per_min)
     app.state.submit_limiter = RateLimiter(settings.rate_limit_per_min)
     app.state.task_cache = _TaskCache()
@@ -79,6 +82,11 @@ async def on_validation_error(request: Request, exc: RequestValidationError):
     return _error("invalid_request", "Dữ liệu gửi lên không hợp lệ", 422)
 
 
+@app.exception_handler(GatewayError)
+async def on_gateway_error(request: Request, exc: GatewayError):
+    return _error(exc.code, exc.message, exc.status)
+
+
 @app.exception_handler(HTTPException)
 async def on_http_exception(request: Request, exc: HTTPException):
     detail = exc.detail
@@ -87,14 +95,12 @@ async def on_http_exception(request: Request, exc: HTTPException):
     return _error("error", str(detail), exc.status_code)
 
 
+def _cookie(request: Request) -> str | None:
+    return request.cookies.get(settings.session_cookie_name)
+
+
 def _require_session(request: Request) -> LocalSession:
-    cookie = request.cookies.get(settings.session_cookie_name)
-    session = request.app.state.sessions.resolve(cookie)
-    if session is None:
-        raise HTTPException(
-            401, {"code": "unauthorized", "message": "Chưa đăng nhập hoặc phiên đã hết hạn"}
-        )
-    return session
+    return request.app.state.gateway.require_session(_cookie(request))
 
 
 @app.get("/health")
@@ -106,19 +112,7 @@ async def health(request: Request):
 
 @app.post("/api/login", response_model=LoginResponse)
 async def login(req: LoginRequest, request: Request, response: Response):
-    try:
-        user = await request.app.state.dres_client.login(req.username, req.password)
-    except DresAuthError as exc:
-        raise HTTPException(401, {"code": exc.code, "message": exc.message})
-    except DresError as exc:
-        raise HTTPException(502, {"code": exc.code, "message": exc.message})
-
-    cookie_value = request.app.state.sessions.create(
-        dres_session_id=user.session_id,
-        dres_user_id=user.id,
-        username=user.username,
-        role=user.role,
-    )
+    cookie_value, session = await request.app.state.gateway.login(req.username, req.password)
     response.set_cookie(
         settings.session_cookie_name,
         cookie_value,
@@ -127,7 +121,7 @@ async def login(req: LoginRequest, request: Request, response: Response):
         samesite="lax",
         max_age=settings.session_max_age_s,
     )
-    return LoginResponse(username=user.username, role=user.role)
+    return LoginResponse(username=session.username, role=session.role)
 
 
 @app.get("/api/me", response_model=LoginResponse)
@@ -138,21 +132,16 @@ async def me(request: Request):
 
 @app.post("/api/logout")
 async def logout(request: Request, response: Response):
-    cookie = request.cookies.get(settings.session_cookie_name)
-    session = request.app.state.sessions.resolve(cookie)
-    if session is not None:
-        await request.app.state.dres_client.logout(session.dres_session_id)
-    request.app.state.sessions.destroy(cookie)
+    await request.app.state.gateway.logout(_cookie(request))
     response.delete_cookie(settings.session_cookie_name)
     return {"status": "ok", "description": "logged out"}
 
 
 @app.post("/api/search", response_model=SearchResponse)
 async def search(req: SearchRequest, request: Request):
-    _require_session(request)
+    session = _require_session(request)
 
-    client_ip = request.client.host if request.client else "unknown"
-    if not request.app.state.search_limiter.allow(client_ip):
+    if not request.app.state.search_limiter.allow(session.username):
         raise HTTPException(
             429, {"code": "rate_limited", "message": "Tìm kiếm quá nhanh, vui lòng chờ"}
         )
@@ -169,7 +158,7 @@ async def search(req: SearchRequest, request: Request):
 
 @app.get("/api/task", response_model=TaskResponse)
 async def get_task(request: Request):
-    session = _require_session(request)
+    _require_session(request)
 
     if not settings.dres_evaluation_id:
         return TaskResponse(running=False)
@@ -178,18 +167,7 @@ async def get_task(request: Request):
     if cached is not None:
         return cached
 
-    try:
-        task = await request.app.state.dres_client.current_task(
-            settings.dres_evaluation_id, session.dres_session_id
-        )
-        server_time_ms = await request.app.state.dres_client.server_time()
-    except DresAuthError:
-        request.app.state.sessions.destroy(request.cookies.get(settings.session_cookie_name))
-        raise HTTPException(
-            401, {"code": "session_expired", "message": "Phiên DRES đã hết hạn, hãy đăng nhập lại"}
-        )
-    except DresError as exc:
-        raise HTTPException(502, {"code": exc.code, "message": exc.message})
+    task, server_time_ms = await request.app.state.gateway.current_task(_cookie(request))
 
     if task is None:
         result = TaskResponse(running=False, server_time_ms=server_time_ms)
@@ -210,8 +188,7 @@ async def get_task(request: Request):
 async def submit(req: SubmitRequest, request: Request):
     session = _require_session(request)
 
-    client_ip = request.client.host if request.client else "unknown"
-    if not request.app.state.submit_limiter.allow(client_ip):
+    if not request.app.state.submit_limiter.allow(session.username):
         raise HTTPException(
             429, {"code": "rate_limited", "message": "Submit quá nhanh, vui lòng chờ"}
         )
@@ -222,25 +199,7 @@ async def submit(req: SubmitRequest, request: Request):
             400, {"code": "unknown_id", "message": "ID ảnh không hợp lệ"}
         )
 
-    if not settings.dres_evaluation_id:
-        raise HTTPException(
-            409, {"code": "no_evaluation", "message": "Chưa cấu hình DRES_EVALUATION_ID"}
-        )
-
-    try:
-        verdict, message = await request.app.state.dres_client.submit(
-            settings.dres_evaluation_id, session.dres_session_id, req.id
-        )
-    except DresAuthError:
-        # Never cache the student's password, so we cannot silently
-        # re-login; invalidate the local session and make them log in again.
-        request.app.state.sessions.destroy(request.cookies.get(settings.session_cookie_name))
-        raise HTTPException(
-            401, {"code": "session_expired", "message": "Phiên DRES đã hết hạn, hãy đăng nhập lại"}
-        )
-    except DresError as exc:
-        raise HTTPException(502, {"code": exc.code, "message": exc.message})
-
+    verdict, message = await request.app.state.gateway.submit(_cookie(request), req.id)
     return SubmitResponse(verdict=verdict, message=message)
 
 

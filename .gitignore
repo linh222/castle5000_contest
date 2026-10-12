@@ -22,3 +22,7 @@ frontend/dist/
 
 # internal planning doc -- not for the public repo
 Technical note*.md
+
+# local agent config
+CLAUDE.md
+docs/agents/
